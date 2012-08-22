@@ -91,6 +91,10 @@ class CondVar {
   
 };
 
+typedef void* OnceType;
+#define LEVELDB_ONCE_INIT 0
+extern void InitOnce(port::OnceType*, void (*initializer)());
+
 // Storage for a lock-free pointer
 class AtomicPointer {
  private:
