@@ -4,7 +4,7 @@
 // Those files dont' have any explict license headers but the 
 // project (http://code.google.com/p/leveldbwin/) lists the 'New BSD License'
 // as the license.
-
+#if defined(LEVELDB_PLATFORM_WINDOWS)
 #include <map>
 
 
@@ -1013,3 +1013,5 @@ Env* Env::Default() {
 }
 
 }  // namespace leveldb
+
+#endif // defined(LEVELDB_PLATFORM_WINDOWS)
