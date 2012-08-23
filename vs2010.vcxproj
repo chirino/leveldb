@@ -123,7 +123,6 @@
     <ClCompile Include=".\util\logging.cc" />
     <ClCompile Include=".\util\options.cc" />
     <ClCompile Include=".\util\status.cc" />
-    <ClCompile Include=".\util\win_logger.cc" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)'=='Benchmark'">
     <ClCompile Include=".\db\db_bench.cc" />
