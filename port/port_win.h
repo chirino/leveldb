@@ -36,8 +36,10 @@
 #define fread_unlocked _fread_nolock
 
 #include <string>
-
 #include <stdint.h>
+#ifdef SNAPPY
+#include <snappy.h>
+#endif
 
 namespace leveldb {
 namespace port {

@@ -62,6 +62,11 @@
       <AdditionalIncludeDirectories>.;.\include;.\port\win</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'!='Debug'">
+    <ClCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
     <ClCompile>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -114,6 +119,23 @@
     <ClCompile Include=".\util\options.cc" />
     <ClCompile Include=".\util\status.cc" />
   </ItemGroup>
+
+  <!-- Snappy settings -->
+  <ItemDefinitionGroup Condition="Exists('$(Snappy)\snappy-c.cc')">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(Snappy);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>SNAPPY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup Condition="Exists('$(Snappy)\snappy-c.cc')">
+    <ClCompile Include="$(Snappy)\snappy-c.cc" />
+    <ClCompile Include="$(Snappy)\snappy-sinksource.cc" />
+    <ClCompile Include="$(Snappy)\snappy-stubs-internal.cc" />
+    <ClCompile Include="$(Snappy)\snappy.cc" />
+  </ItemGroup>
+
+
+  <!-- Benchmark settings -->
   <ItemGroup Condition="'$(Configuration)'=='Benchmark'">
     <ClCompile Include=".\db\db_bench.cc" />
     <ClCompile Include=".\util\histogram.cc" />
@@ -124,6 +146,7 @@
       <AdditionalDependencies>shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
+
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
