@@ -5,13 +5,8 @@
 // project (http://code.google.com/p/leveldbwin/) lists the 'New BSD License'
 // as the license.
 
-#include <atlbase.h>
-#include <atlconv.h>
 #include <map>
 
-#if defined DeleteFile
-#undef DeleteFile
-#endif
 
 #include "leveldb/env.h"
 
@@ -29,13 +24,16 @@
 #include <algorithm>
 #pragma comment(lib,"DbgHelp.lib")
 
-
 #ifdef max
 #undef max
 #endif
 
 #ifndef va_copy
 #define va_copy(d,s) ((d) = (s))
+#endif
+
+#if defined DeleteFile
+#undef DeleteFile
 #endif
 
 //Declarations
@@ -48,10 +46,6 @@ namespace Win32
 #define DISALLOW_COPY_AND_ASSIGN(TypeName) \
   TypeName(const TypeName&);               \
   void operator=(const TypeName&)
-
-typedef ATL::CA2WEX<MAX_PATH> MultiByteToWChar;
-typedef ATL::CW2AEX<MAX_PATH> WCharToMultiByte;
-typedef ATL::CA2AEX<MAX_PATH> MultiByteToAnsi;
 
 std::string GetCurrentDir();
 std::wstring GetCurrentDirW();
@@ -223,6 +217,17 @@ public:
     virtual void SleepForMicroseconds(int micros);
 };
 
+void ToWidePath(const std::string& value, std::wstring& target) {
+	wchar_t buffer[MAX_PATH];
+	MultiByteToWideChar(CP_ACP, 0, value.c_str(), -1, buffer, MAX_PATH);
+	target = buffer;
+}
+
+void ToNarrowPath(const std::wstring& value, std::string& target) {
+	char buffer[MAX_PATH];
+	WideCharToMultiByte(CP_ACP, 0, value.c_str(), -1, buffer, MAX_PATH, NULL, NULL);
+	target = buffer;
+}
 
 std::string GetCurrentDir()
 {
@@ -261,7 +266,7 @@ std::wstring& ModifyPath(std::wstring& path)
 
 std::string GetLastErrSz()
 {
-    LPVOID lpMsgBuf;
+    LPWSTR lpMsgBuf;
     FormatMessageW( 
         FORMAT_MESSAGE_ALLOCATE_BUFFER | 
         FORMAT_MESSAGE_FROM_SYSTEM | 
@@ -273,7 +278,8 @@ std::string GetLastErrSz()
         0,
         NULL 
         );
-    std::string Err = WCharToMultiByte((LPCWSTR)lpMsgBuf); 
+    std::string Err;
+	ToNarrowPath(lpMsgBuf, Err); 
     LocalFree( lpMsgBuf );
     return Err;
 }
@@ -364,7 +370,9 @@ BOOL Win32SequentialFile::isEnable()
 
 BOOL Win32SequentialFile::_Init()
 {
-    _hFile = CreateFileW(Win32::MultiByteToWChar(_filename.c_str() ),
+	std::wstring path;
+	ToWidePath(_filename, path);
+	_hFile = CreateFileW(path.c_str(),
                          GENERIC_READ,
                          FILE_SHARE_READ,
                          NULL,
@@ -385,7 +393,9 @@ void Win32SequentialFile::_CleanUp()
 Win32RandomAccessFile::Win32RandomAccessFile( const std::string& fname ) :
     _filename(fname),_hFile(NULL)
 {
-    _Init(Win32::MultiByteToWChar(fname.c_str() ) );
+	std::wstring path;
+	ToWidePath(fname, path);
+    _Init( path.c_str() );
 }
 
 Win32RandomAccessFile::~Win32RandomAccessFile()
@@ -518,7 +528,9 @@ Win32MapFile::Win32MapFile( const std::string& fname) :
     _file_offset(0),
     _pending_sync(false)
 {
-    _Init(Win32::MultiByteToWChar(fname.c_str() ) );
+	std::wstring path;
+	ToWidePath(fname, path);
+    _Init(path.c_str());
     assert((Win32::g_PageSize & (Win32::g_PageSize - 1)) == 0);
 }
 
@@ -633,7 +645,9 @@ BOOL Win32MapFile::isEnable()
 Win32FileLock::Win32FileLock( const std::string& fname ) :
     _hFile(NULL),_filename(fname)
 {
-    _Init(Win32::MultiByteToWChar(fname.c_str() ) );
+	std::wstring path;
+	ToWidePath(fname, path);
+	_Init(path.c_str());
 }
 
 Win32FileLock::~Win32FileLock()
@@ -746,9 +760,10 @@ void Win32Logger::Logv( const char* format, va_list ap )
 
 bool Win32Env::FileExists(const std::string& fname)
 {
-    std::string path = fname;
-    Win32::ModifyPath(path);
-    return ::PathFileExistsW(Win32::MultiByteToWChar(path.c_str() ) ) ? true : false;
+	std::string path = fname;
+    std::wstring wpath;
+	ToWidePath(ModifyPath(path), wpath);
+    return ::PathFileExistsW(wpath.c_str()) ? true : false;
 }
 
 Status Win32Env::GetChildren(const std::string& dir, std::vector<std::string>* result)
@@ -756,15 +771,17 @@ Status Win32Env::GetChildren(const std::string& dir, std::vector<std::string>* r
     Status sRet;
     ::WIN32_FIND_DATAW wfd;
     std::string path = dir;
-    Win32::ModifyPath(path);
+    ModifyPath(path);
     path += "\\*.*";
-    ::HANDLE hFind = ::FindFirstFileW(
-        Win32::MultiByteToWChar(path.c_str() ) ,&wfd);
+	std::wstring wpath;
+	ToWidePath(path, wpath);
+
+	::HANDLE hFind = ::FindFirstFileW(wpath.c_str() ,&wfd);
     if(hFind && hFind != INVALID_HANDLE_VALUE){
         BOOL hasNext = TRUE;
         std::string child;
         while(hasNext){
-            child = Win32::WCharToMultiByte(wfd.cFileName); 
+            ToNarrowPath(wfd.cFileName, child); 
             if(child != ".." && child != ".")  {
                 result->push_back(child);
             }
@@ -782,12 +799,15 @@ void Win32Env::SleepForMicroseconds( int micros )
     ::Sleep((micros + 999) /1000);
 }
 
+
 Status Win32Env::DeleteFile( const std::string& fname )
 {
     Status sRet;
     std::string path = fname;
-    Win32::ModifyPath(path);
-    if(!::DeleteFileW(Win32::MultiByteToWChar(path.c_str() ) ) ){
+    std::wstring wpath;
+	ToWidePath(ModifyPath(path), wpath);
+
+    if(!::DeleteFileW(wpath.c_str())) {
         sRet = Status::IOError(path, "Could not delete file.");
     }
     return sRet;
@@ -797,8 +817,10 @@ Status Win32Env::GetFileSize( const std::string& fname, uint64_t* file_size )
 {
     Status sRet;
     std::string path = fname;
-    Win32::ModifyPath(path);
-    HANDLE file = ::CreateFileW(Win32::MultiByteToWChar(path.c_str()),
+    std::wstring wpath;
+	ToWidePath(ModifyPath(path), wpath);
+
+    HANDLE file = ::CreateFileW(wpath.c_str(),
         GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
     LARGE_INTEGER li;
     if(::GetFileSizeEx(file,&li)){
@@ -812,16 +834,20 @@ Status Win32Env::GetFileSize( const std::string& fname, uint64_t* file_size )
 Status Win32Env::RenameFile( const std::string& src, const std::string& target )
 {
     Status sRet;
-    std::wstring src_path = ModifyPath((std::wstring)(LPWSTR)MultiByteToWChar(src.c_str() ));
-    std::wstring target_path = ModifyPath((std::wstring)(LPWSTR)MultiByteToWChar(target.c_str() ));
+    std::string src_path = src;
+    std::wstring wsrc_path;
+	ToWidePath(ModifyPath(src_path), wsrc_path);
+	std::string target_path = target;
+    std::wstring wtarget_path;
+	ToWidePath(ModifyPath(target_path), wtarget_path);
 
-    if(!MoveFileW(src_path.c_str(), target_path.c_str() ) ){
+    if(!MoveFileW(wsrc_path.c_str(), wtarget_path.c_str() ) ){
         DWORD err = GetLastError();
         if(err == 0x000000b7){
-            if(!::DeleteFileW(target_path.c_str() ) )
+            if(!::DeleteFileW(wtarget_path.c_str() ) )
                 sRet = Status::IOError(src, "Could not rename file.");
-            else if(!::MoveFileW(Win32::ModifyPath(src_path).c_str(),
-                                 Win32::ModifyPath(target_path).c_str() ) )
+			else if(!::MoveFileW(wsrc_path.c_str(),
+                                 wtarget_path.c_str() ) )
                 sRet = Status::IOError(src, "Could not rename file.");    
         }
     }
@@ -832,7 +858,7 @@ Status Win32Env::LockFile( const std::string& fname, FileLock** lock )
 {
     Status sRet;
     std::string path = fname;
-    Win32::ModifyPath(path);
+    ModifyPath(path);
     Win32FileLock* _lock = new Win32FileLock(path);
     if(!_lock->isEnable()){
         delete _lock;
@@ -868,9 +894,9 @@ Status Win32Env::GetTestDirectory( std::string* path )
     Status sRet;
     WCHAR TempPath[MAX_PATH];
     ::GetTempPathW(MAX_PATH,TempPath);
-    *path = Win32::WCharToMultiByte(TempPath);
+	ToNarrowPath(TempPath, *path);
     path->append("leveldb\\test\\");
-    Win32::ModifyPath(*path);
+    ModifyPath(*path);
     return sRet;
 }
 
@@ -885,11 +911,11 @@ uint64_t Win32Env::NowMicros()
 Status Win32Env::CreateDir( const std::string& dirname )
 {
     Status sRet;
-    std::string path = Win32::MultiByteToAnsi(dirname.c_str() );
+    std::string path = dirname;
     if(path[path.length() - 1] != '\\'){
         path += '\\';
     }
-    Win32::ModifyPath(path);
+    ModifyPath(path);
     if(!::MakeSureDirectoryPathExists( path.c_str() ) ){
         sRet = Status::IOError(dirname, "Could not create directory.");
     }
@@ -899,8 +925,9 @@ Status Win32Env::CreateDir( const std::string& dirname )
 Status Win32Env::DeleteDir( const std::string& dirname )
 {
     Status sRet;
-    std::wstring path = Win32::MultiByteToWChar(dirname.c_str() ) ;
-    Win32::ModifyPath(path);
+    std::wstring path;
+	ToWidePath(dirname, path);
+    ModifyPath(path);
     if(!::RemoveDirectoryW( path.c_str() ) ){
         sRet = Status::IOError(dirname, "Could not delete directory.");
     }
@@ -911,7 +938,7 @@ Status Win32Env::NewSequentialFile( const std::string& fname, SequentialFile** r
 {
     Status sRet;
     std::string path = fname;
-    Win32::ModifyPath(path);
+    ModifyPath(path);
     Win32SequentialFile* pFile = new Win32SequentialFile(path);
     if(pFile->isEnable()){
         *result = pFile;
@@ -926,7 +953,7 @@ Status Win32Env::NewRandomAccessFile( const std::string& fname, RandomAccessFile
 {
     Status sRet;
     std::string path = fname;
-    Win32RandomAccessFile* pFile = new Win32RandomAccessFile(Win32::ModifyPath(path));
+    Win32RandomAccessFile* pFile = new Win32RandomAccessFile(ModifyPath(path));
     if(!pFile->isEnable()){
         delete pFile;
         *result = NULL;
@@ -940,7 +967,7 @@ Status Win32Env::NewLogger( const std::string& fname, Logger** result )
 {
     Status sRet;
     std::string path = fname;
-    Win32MapFile* pMapFile = new Win32MapFile(Win32::ModifyPath(path));
+    Win32MapFile* pMapFile = new Win32MapFile(ModifyPath(path));
     if(!pMapFile->isEnable()){
         delete pMapFile;
         *result = NULL;
@@ -954,7 +981,7 @@ Status Win32Env::NewWritableFile( const std::string& fname, WritableFile** resul
 {
     Status sRet;
     std::string path = fname;
-    Win32MapFile* pFile = new Win32MapFile(Win32::ModifyPath(path));
+    Win32MapFile* pFile = new Win32MapFile(ModifyPath(path));
     if(!pFile->isEnable()){
         *result = NULL;
         sRet = Status::IOError(fname,Win32::GetLastErrSz());
