@@ -1030,6 +1030,52 @@ static bool Between(uint64_t val, uint64_t low, uint64_t high) {
   return result;
 }
 
+TEST(DBTest, CompactionBug_Issue77) {
+  int liveKeys = (1024*1024*40)/(6+1024+12);
+  int totalKeys = liveKeys * 50;
+
+  Random rnd(301);
+  for( int i=0; i < totalKeys; i++) {
+    
+    if( i%((totalKeys/100)*10) == 0 ) {
+      printf("%d%% done. Using: %.2f MB\n", (i / (totalKeys/100)), (Size("", Key(totalKeys))/(1024.0*1024)));
+    }
+
+    
+    Put(Key(i), RandomString(&rnd, 1024));
+    if( i >= liveKeys ) {
+      int deleteKey = i - liveKeys;
+      if( deleteKey == 0 ) {
+        // Should be between 30 and 40 mb before we start deleting keys.
+        ASSERT_TRUE(Between(Size("", Key(totalKeys)), 1024*1024*30, 1024*1024*40));
+        printf("Deletes starting.  %d%% done. Using: %.2f MB\n", (i / (totalKeys/100)), (Size("", Key(totalKeys))/(1024.0*1024)));
+      }
+      Delete(Key(deleteKey));
+    }
+  }
+  
+  printf("Deleting remaining live records...\n");
+  for( int i=totalKeys-liveKeys; i < totalKeys; i++) {
+      Delete(Key(i));
+  }
+
+  printf("Counting records...\n");
+  int entries =0 ;
+  Iterator* iter = db_->NewIterator(ReadOptions());
+  for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
+    entries++;
+  }
+  delete iter;
+  
+  printf("Database contained %d entries.\n", entries);
+  printf("Using: %.2f MB\n", (Size("", Key(totalKeys))/(1024.0*1024)));
+  
+  ASSERT_TRUE(entries==0);
+  // Given that there are no keys, the size should really be about zero.
+  ASSERT_TRUE(Between(Size("", Key(totalKeys)), 0, 1024*1024*8));
+}
+
+
 TEST(DBTest, ApproximateSizes) {
   do {
     Options options = CurrentOptions();
