@@ -41,6 +41,9 @@
 #include <snappy.h>
 #endif
 
+#include <BaseTsd.h>
+#define ssize_t LONG_PTR
+
 namespace leveldb {
 namespace port {
 
