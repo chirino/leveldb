@@ -21,4 +21,12 @@ typedef unsigned short        uint16_t;
 typedef unsigned int          uint32_t;
 typedef unsigned long long    uint64_t;
 
+#if defined(_WIN32)
+typedef int32_t               ssize_t;
+#elif defined(_WIN64)
+typedef int64_t               ssize_t;
+#else
+#error "Unknown architecture"
+#endif
+
 #endif  // STORAGE_LEVELDB_PORT_WIN_STDINT_H_
