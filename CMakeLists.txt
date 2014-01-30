@@ -1,10 +1,38 @@
+#
+# Set CMake minimum version
+cmake_minimum_required(VERSION 2.8)
+
+#
+# Name the project
 project(leveldb)
 
+add_definitions(
+   # Required for Windows port
+   -DLEVELDB_PLATFORM_WINDOWS
+   # Required for Windows port
+   -DOS_WIN
+   # Disable secure CRT warnings
+   -D_CRT_SECURE_NO_WARNINGS
+   # Disable "signed/unsigned mismatch" warning
+   -wd4018
+   # Disable "conversion from 'uint64_t' to 'size_t'" warning
+   -wd4244
+   # Disable "forcing value to bool 'true' or 'false'" warning
+   -wd4800
+   # Disable "POSIX name for this item is deprecated" warning
+   -wd4996
+   )
+
+#
+# Add include directories
 include_directories(
    ${CMAKE_CURRENT_SOURCE_DIR}
    ${CMAKE_CURRENT_SOURCE_DIR}/include
+   ${CMAKE_CURRENT_SOURCE_DIR}/port/win
 )
 
+#
+# Add static library
 add_library(
    leveldb
    db/builder.cc
