@@ -33,6 +33,7 @@
 //      readmissing   -- read N missing keys in random order
 //      readhot       -- read N times in random order from 1% section of DB
 //      seekrandom    -- N random seeks
+//      open          -- cost of opening a DB
 //      crc32c        -- repeated crc32c of 4K of data
 //      acquireload   -- load N*1000 times
 //   Meta operations:
@@ -128,7 +129,7 @@ class RandomGenerator {
     pos_ = 0;
   }
 
-  Slice Generate(int len) {
+  Slice Generate(size_t len) {
     if (pos_ + len > data_.size()) {
       pos_ = 0;
       assert(len < data_.size());
@@ -139,11 +140,11 @@ class RandomGenerator {
 };
 
 static Slice TrimSpace(Slice s) {
-  int start = 0;
+  size_t start = 0;
   while (start < s.size() && isspace(s[start])) {
     start++;
   }
-  int limit = s.size();
+  size_t limit = s.size();
   while (limit > start && isspace(s[limit-1])) {
     limit--;
   }
@@ -399,7 +400,7 @@ class Benchmark {
     heap_counter_(0) {
     std::vector<std::string> files;
     Env::Default()->GetChildren(FLAGS_db, &files);
-    for (int i = 0; i < files.size(); i++) {
+    for (size_t i = 0; i < files.size(); i++) {
       if (Slice(files[i]).starts_with("heap-")) {
         Env::Default()->DeleteFile(std::string(FLAGS_db) + "/" + files[i]);
       }
@@ -431,7 +432,7 @@ class Benchmark {
         benchmarks = sep + 1;
       }
 
-      // Reset parameters that may be overriddden bwlow
+      // Reset parameters that may be overridden below
       num_ = FLAGS_num;
       reads_ = (FLAGS_reads < 0 ? FLAGS_num : FLAGS_reads);
       value_size_ = FLAGS_value_size;
@@ -442,7 +443,11 @@ class Benchmark {
       bool fresh_db = false;
       int num_threads = FLAGS_threads;
 
-      if (name == Slice("fillseq")) {
+      if (name == Slice("open")) {
+        method = &Benchmark::OpenBench;
+        num_ /= 10000;
+        if (num_ < 1) num_ = 1;
+      } else if (name == Slice("fillseq")) {
         fresh_db = true;
         method = &Benchmark::WriteSeq;
       } else if (name == Slice("fillbatch")) {
@@ -702,6 +707,14 @@ class Benchmark {
     }
   }
 
+  void OpenBench(ThreadState* thread) {
+    for (int i = 0; i < num_; i++) {
+      delete db_;
+      Open();
+      thread->stats.FinishedSingleOp();
+    }
+  }
+
   void WriteSeq(ThreadState* thread) {
     DoWrite(thread, true);
   }
@@ -811,7 +824,6 @@ class Benchmark {
 
   void SeekRandom(ThreadState* thread) {
     ReadOptions options;
-    std::string value;
     int found = 0;
     for (int i = 0; i < reads_; i++) {
       Iterator* iter = db_->NewIterator(options);
