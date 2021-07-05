@@ -36,6 +36,8 @@
 #define ARCH_CPU_X86_FAMILY 1
 #elif defined(__ARMEL__)
 #define ARCH_CPU_ARM_FAMILY 1
+#elif defined(__s390x__) || defined(__s390__)
+#define ARCH_CPU_S390_FAMILY 1
 #elif defined(__ppc__) || defined(__powerpc__) || defined(__powerpc64__)
 #define ARCH_CPU_PPC_FAMILY 1
 #endif
@@ -48,6 +50,14 @@ namespace port {
 #if defined(OS_WIN) && defined(COMPILER_MSVC) && defined(ARCH_CPU_X86_FAMILY)
 // windows.h already provides a MemoryBarrier(void) macro
 // http://msdn.microsoft.com/en-us/library/ms684208(v=vs.85).aspx
+#define LEVELDB_HAVE_MEMORY_BARRIER
+
+// S390
+#elif defined(ARCH_CPU_S390_FAMILY)
+
+inline void MemoryBarrier() {
+  asm volatile("bcr 15,0" : : : "memory");
+}
 #define LEVELDB_HAVE_MEMORY_BARRIER
 
 // Gcc on x86
@@ -217,6 +227,7 @@ class AtomicPointer {
 #undef ARCH_CPU_X86_FAMILY
 #undef ARCH_CPU_ARM_FAMILY
 #undef ARCH_CPU_PPC_FAMILY
+#undef ARCH_CPU_S390_FAMILY
 
 }  // namespace port
 }  // namespace leveldb
